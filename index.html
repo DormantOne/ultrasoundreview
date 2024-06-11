@@ -28,6 +28,7 @@
 
         let childWindows = [];
         let currentImage = '';
+        let currentImageNumber = '';
 
         function decryptMetadata(encryptedMetadata) {
             if (encryptedMetadata.startsWith('xxx') && encryptedMetadata.endsWith('xxx')) {
@@ -44,10 +45,11 @@
             }
         }
 
-        function openChildWindow(encryptedUrl, metadata) {
+        function openChildWindow(encryptedUrl, metadata, imageNumber) {
             closeChildWindows(); // Ensure only one window is open at a time
             const url = decryptMetadata(encryptedUrl);
             currentImage = metadata;
+            currentImageNumber = imageNumber;
             const childWindow = window.open(
                 url,
                 'Ultrasound Image',
@@ -58,6 +60,7 @@
             } else {
                 alert('Please allow pop-ups for this site.');
             }
+            markCurrentButton(metadata);
         }
 
         function closeChildWindows() {
@@ -80,14 +83,44 @@
             }
         }
 
+        function markCurrentButton(metadata) {
+            document.querySelectorAll('.ultrasound-button').forEach(button => {
+                button.classList.remove('current');
+            });
+            const button = document.querySelector(`[data-metadata='${metadata}']`);
+            if (button) {
+                button.classList.add('current');
+            }
+        }
+
+        function markAnswered(metadata) {
+            const button = document.querySelector(`[data-metadata='${metadata}']`);
+            if (button) {
+                button.classList.add('answered');
+            }
+        }
+
         function submitGuess() {
             const guess = document.getElementById('guessInput').value;
+            const resultContainer = document.getElementById('resultContainer');
             if (guess) {
                 try {
                     const decryptedMetadata = decryptMetadata(currentImage);
-                    alert(`You guessed: ${guess} for ${decryptedMetadata}`);
+                    const points = calculatePoints(guess, decryptedMetadata);
+                    const result = `Image ${currentImageNumber}: You guessed: ${guess} for ${decryptedMetadata} - Points: ${points}`;
+                    const newResult = document.createElement('div');
+                    newResult.textContent = result;
+                    newResult.classList.add('result-item');
+                    resultContainer.insertBefore(newResult, resultContainer.firstChild); // Show last answer on top
+                    storeResult(result);
+                    markAnswered(currentImage);
                 } catch (error) {
-                    alert(`You guessed: ${guess} but there was an error decrypting the metadata: ${error.message}`);
+                    const result = `Image ${currentImageNumber}: You guessed: ${guess} but there was an error decrypting the metadata: ${error.message}`;
+                    const newResult = document.createElement('div');
+                    newResult.textContent = result;
+                    newResult.classList.add('result-item');
+                    resultContainer.insertBefore(newResult, resultContainer.firstChild); // Show last answer on top
+                    storeResult(result);
                 }
                 document.getElementById('guessInput').value = ''; // Clear input field after submission
             } else {
@@ -95,11 +128,63 @@
             }
         }
 
+        function calculatePoints(guess, correctAnswer) {
+            const guessWords = guess.trim().toLowerCase().split(/\W+/);
+            const correctWords = correctAnswer.trim().toLowerCase().split(/\W+/);
+            let points = 0;
+
+            correctWords.forEach(word => {
+                if (word.length > 4) {
+                    guessWords.forEach(guessWord => {
+                        if (guessWord.includes(word) || word.includes(guessWord)) {
+                            points += 0.2; // Partial points for matching words longer than 4 letters
+                        }
+                    });
+                }
+            });
+
+            if (guess.trim().toLowerCase() === correctAnswer.trim().toLowerCase()) {
+                points = 1; // Full point for exact match
+            }
+
+            return points.toFixed(2); // Return points with 2 decimal places
+        }
+
+        function storeResult(result) {
+            let results = JSON.parse(localStorage.getItem('results')) || [];
+            results.unshift(result);
+            localStorage.setItem('results', JSON.stringify(results));
+        }
+
+        function loadResults() {
+            const results = JSON.parse(localStorage.getItem('results')) || [];
+            const resultContainer = document.getElementById('resultContainer');
+            results.forEach(result => {
+                const newResult = document.createElement('div');
+                newResult.textContent = result;
+                newResult.classList.add('result-item');
+                resultContainer.appendChild(newResult);
+            });
+        }
+
+        function clearResults() {
+            localStorage.removeItem('results');
+            document.getElementById('resultContainer').innerHTML = '';
+        }
+
+        function sendEmail() {
+            const results = JSON.parse(localStorage.getItem('results')) || [];
+            const subject = 'Ultrasound Quiz Results';
+            const body = results.join('%0D%0A');
+            window.location.href = `mailto:sohnenae@gmail.com?subject=${subject}&body=${body}`;
+        }
+
         window.onload = function () {
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('resized')) {
                 enableButtons();
             }
+            loadResults();
         };
     </script>
     <style>
@@ -141,25 +226,53 @@
             cursor: not-allowed;
         }
 
+        button.current {
+            font-weight: bold; /* Bold for current button */
+        }
+
+        button.answered::after {
+            content: ' •';
+            color: red; /* Brighter red color */
+            font-size: 20px;
+        }
+
         input[type="text"] {
             width: 200px; /* Optional: Adjusts the width of the text input */
             background-color: white;
             color: black;
+        }
+
+        #resultContainer {
+            max-height: 300px;
+            overflow-y: auto;
+            width: 300px; /* Confine the width */
+            background: #fff;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin: 10px 0;
+            font-size: 12px; /* Small print */
+        }
+
+        .result-item {
+            margin-bottom: 5px;
         }
     </style>
 </head>
 <body>
     <div class="button-container">
         <button id="startButton" onclick="openResizedWindow()">Start/Resize Screen</button>
-        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVpMWnpEUi1ubEJJckx1Q3NzdjlkSElCYzlUZTF3dWktemdhSFZmZXkyQXVvZz9lPTFiRzMwdSJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJnYWxsc3RvbmVzIHdpdGggc2hhZG93aW5nIn0=xxx')" disabled>Open Ultrasound 1</button>
-        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVVsUlNrdVMyUTVCbnVYVW82dlZsVUFCb3ZhZlpteTNJcnh6elVWc0gyUF9iZz9lPThhVzdTSCJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGFuIHVsdHJhc291bmQgaW1hZ2Ugd2l0aCBsYXJnZSB0aHlyb2lkIG5vZHVsZSB0aGF0IG5lZWRzIHRvIGJlIGJpb3BzaWVkLiBUaGVyZSBhcmUgc2lnbnMgb2Ygc29tZSBkZWdyZWUgb2YgaG9tb2dlbmVpcml0eSBhbmQgbGlrZWx5IGJlbmlnbiJ9xxx')" disabled>Open Ultrasound 2</button>
-        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86djovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVdid0NUSFFIWmRHa1FPQnRHSEtESW9CNjN0Z3VzVVhKNGJud1Y3cW5Ha0plZz9uYXY9ZXlKeVpXWmxjbkpoYkVsdVptOGlPbnNpY21WbVpYSnlZV3hCY0hBaU9pSlBibVZFY21sMlpVWnZja0oxYzJsdVpYTnpJaXdpY21WbVpYSnlZV3hCY0hCUWJHRjBabTl5YlNJNklsZGxZaUlzSW5KbFptVnljbUZzVFc5a1pTSTZJblpwWlhjaUxDSnlaV1psY25KaGJGWnBaWGNpT2lKTmVVWnBiR1Z6VEdsdWEwTnZjSGtpZlgwJmU9QjZ6OGVFIn0=xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJsaXZlciBzaW51c29pZHMifQ==xxx')" disabled>Open Ultrasound 3</button>
+        <button class="ultrasound-button disabled" data-metadata='xxxeyJEZXNjcmlwdGlvbiI6ICJnYWxsc3RvbmVzIHdpdGggc2hhZG93aW5nIn0=xxx' onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVpMWnpEUi1ubEJJckx1Q3NzdjlkSElCYzlUZTF3dWktemdhSFZmZXkyQXVvZz9lPTFiRzMwdSJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJnYWxsc3RvbmVzIHdpdGggc2hhZG93aW5nIn0=xxx', 1)" disabled>Open Ultrasound 1</button>
+        <button class="ultrasound-button disabled" data-metadata='xxxeyJEZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGFuIHVsdHJhc291bmQgaW1hZ2Ugd2l0aCBsYXJnZSB0aHlyb2lkIG5vZHVsZSB0aGF0IG5lZWRzIHRvIGJlIGJpb3BzaWVkLiBUaGVyZSBhcmUgc2lnbnMgb2Ygc29tZSBkZWdyZWUgb2YgaG9tb2dlbmVpcml0eSBhbmQgbGlrZWx5IGJlbmlnbiJ9xxx' onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVVsUlNrdVMyUTVCbnVYVW82dlZsVUFCb3ZhZlpteTNJcnh6elVWc0gyUF9iZz9lPThhVzdTSCJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGFuIHVsdHJhc291bmQgaW1hZ2Ugd2l0aCBsYXJnZSB0aHlyb2lkIG5vZHVsZSB0aGF0IG5lZWRzIHRvIGJlIGJpb3BzaWVkLiBUaGVyZSBhcmUgc2lnbnMgb2Ygc29tZSBkZWdyZWUgb2YgaG9tb2dlbmVpcml0eSBhbmQgbGlrZWx5IGJlbmlnbiJ9xxx', 2)" disabled>Open Ultrasound 2</button>
+        <button class="ultrasound-button disabled" data-metadata='xxxeyJEZXNjcmlwdGlvbiI6ICJsaXZlciBzaW51c29pZHMifQ==xxx' onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86djovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVdid0NUSFFIWmRHa1FPQnRHSEtESW9CNjN0Z3VzVVhKNGJud1Y3cW5Ha0plZz9uYXY9ZXlKeVpXWmxjbkpoYkVsdVptOGlPbnNpY21WbVpYSnlZV3hCY0hBaU9pSlBibVZFY21sMlpVWnZja0oxYzJsdVpYTnpJaXdpY21WbVpYSnlZV3hCY0hCUWJHRjBabTl5YlNJNklsZGxZaUlzSW5KbFptVnljbUZzVFc5a1pTSTZJblpwWlhjaUxDSnlaV1psY25KaGJGWnBaWGNpT2lKTmVVWnBiR1Z6VEdsdWEwTnZjSGtpZlgwJmU9QjZ6OGVFIn0=xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJsaXZlciBzaW51c29pZHMifQ==xxx', 3)" disabled>Open Ultrasound 3</button>
         <button class="ultrasound-button disabled" onclick="closeChildWindows()" disabled>Close All Windows</button>
     </div>
     <div class="guess-container">
         <input type="text" id="guessInput" placeholder="What is this image?">
         <input type="submit" onclick="submitGuess()" value="Submit Guess">
         <button id="seeImageAgain" class="ultrasound-button disabled" onclick="bringToFront()" disabled>See Image Again</button>
+        <div id="resultContainer"></div>
+        <button onclick="clearResults()">Clear Results</button>
+        <button onclick="sendEmail()">Send Results</button>
     </div>
 </body>
 </html>
