@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ultrasound Images</title>
+    <script type="text/javascript">
+        function openResizedWindow() {
+            const newWidth = window.screen.width * 2 / 3;
+            const newHeight = window.screen.height;
+            const newX = 0;
+            const newY = 0;
+
+            const resizedWindow = window.open(
+                window.location.href + '?resized=true', // Open the same page with a parameter
+                '_blank',
+                `width=${newWidth},height=${newHeight},left=${newX},top=${newY}`
+            );
+
+            window.close(); // Close the original window
+        }
+
+        function enableButtons() {
+            document.querySelectorAll('.ultrasound-button').forEach(button => {
+                button.disabled = false;
+                button.classList.remove('disabled');
+            });
+        }
+
+        let childWindows = [];
+        let currentImage = '';
+
+        function decryptMetadata(encryptedMetadata) {
+            if (encryptedMetadata.startsWith('xxx') && encryptedMetadata.endsWith('xxx')) {
+                encryptedMetadata = encryptedMetadata.slice(3, -3); // Remove 'xxx' flanks
+                let missing_padding = encryptedMetadata.length % 4;
+                if (missing_padding) {
+                    encryptedMetadata += '='.repeat(4 - missing_padding);
+                }
+                const metadata_bytes = atob(encryptedMetadata.replace(/_/g, '/').replace(/-/g, '+'));
+                const metadata_str = decodeURIComponent(escape(metadata_bytes));
+                return JSON.parse(metadata_str).Description;
+            } else {
+                throw new Error("Invalid metadata format");
+            }
+        }
+
+        function openChildWindow(encryptedUrl, metadata) {
+            closeChildWindows(); // Ensure only one window is open at a time
+            const url = decryptMetadata(encryptedUrl);
+            currentImage = metadata;
+            const childWindow = window.open(
+                url,
+                'Ultrasound Image',
+                `width=${window.screen.width / 3},height=${window.screen.height},left=${window.screen.width * 2 / 3},top=0` // Positioning the window on the right
+            );
+            if (childWindow) {
+                childWindows.push(childWindow);
+            } else {
+                alert('Please allow pop-ups for this site.');
+            }
+        }
+
+        function closeChildWindows() {
+            childWindows.forEach(win => {
+                if (win && !win.closed) {
+                    win.close();
+                }
+            });
+            childWindows = [];
+        }
+
+        function bringToFront() {
+            if (childWindows.length > 0) {
+                const win = childWindows[0];
+                if (win && !win.closed) {
+                    win.focus();
+                }
+            } else {
+                alert('No windows are open.');
+            }
+        }
+
+        function submitGuess() {
+            const guess = document.getElementById('guessInput').value;
+            if (guess) {
+                try {
+                    const decryptedMetadata = decryptMetadata(currentImage);
+                    alert(`You guessed: ${guess} for ${decryptedMetadata}`);
+                } catch (error) {
+                    alert(`You guessed: ${guess} but there was an error decrypting the metadata: ${error.message}`);
+                }
+                document.getElementById('guessInput').value = ''; // Clear input field after submission
+            } else {
+                alert('Please enter a guess.');
+            }
+        }
+
+        window.onload = function () {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('resized')) {
+                enableButtons();
+            }
+        };
+    </script>
+    <style>
+        body, html {
+            height: 100%;
+            margin: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #f0f0f0; /* Optional: Adds a light gray background */
+        }
+
+        .button-container, .guess-container {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            margin-right: 20px; /* Adds some padding on the right */
+        }
+
+        button, input[type="text"], input[type="submit"] {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none; /* Optional: Removes the default border */
+            background-color: #007bff; /* Optional: Adds a blue background */
+            color: white; /* Optional: Changes the text color to white */
+            border-radius: 5px; /* Optional: Rounds the corners */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Optional: Adds a shadow effect */
+            transition: background-color 0.3s ease; /* Optional: Smooth transition effect */
+            margin: 5px;
+        }
+
+        button:hover, input[type="submit"]:hover {
+            background-color: #0056b3; /* Optional: Darker blue on hover */
+        }
+
+        button.disabled {
+            background-color: #ccc; /* Grey background for disabled buttons */
+            cursor: not-allowed;
+        }
+
+        input[type="text"] {
+            width: 200px; /* Optional: Adjusts the width of the text input */
+            background-color: white;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="button-container">
+        <button id="startButton" onclick="openResizedWindow()">Start/Resize Screen</button>
+        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVpMWnpEUi1ubEJJckx1Q3NzdjlkSElCYzlUZTF3dWktemdhSFZmZXkyQXVvZz9lPTFiRzMwdSJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJnYWxsc3RvbmVzIHdpdGggc2hhZG93aW5nIn0=xxx')" disabled>Open Ultrasound 1</button>
+        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86aTovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVVsUlNrdVMyUTVCbnVYVW82dlZsVUFCb3ZhZlpteTNJcnh6elVWc0gyUF9iZz9lPThhVzdTSCJ9xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJUaGlzIGlzIGFuIHVsdHJhc291bmQgaW1hZ2Ugd2l0aCBsYXJnZSB0aHlyb2lkIG5vZHVsZSB0aGF0IG5lZWRzIHRvIGJlIGJpb3BzaWVkLiBUaGVyZSBhcmUgc2lnbnMgb2Ygc29tZSBkZWdyZWUgb2YgaG9tb2dlbmVpcml0eSBhbmQgbGlrZWx5IGJlbmlnbiJ9xxx')" disabled>Open Ultrasound 2</button>
+        <button class="ultrasound-button disabled" onclick="openChildWindow('xxxeyJEZXNjcmlwdGlvbiI6ICJodHRwczovL3VwbWNocy1teS5zaGFyZXBvaW50LmNvbS86djovZy9wZXJzb25hbC9zb2huYWVfdXBtY19lZHUvRVdid0NUSFFIWmRHa1FPQnRHSEtESW9CNjN0Z3VzVVhKNGJud1Y3cW5Ha0plZz9uYXY9ZXlKeVpXWmxjbkpoYkVsdVptOGlPbnNpY21WbVpYSnlZV3hCY0hBaU9pSlBibVZFY21sMlpVWnZja0oxYzJsdVpYTnpJaXdpY21WbVpYSnlZV3hCY0hCUWJHRjBabTl5YlNJNklsZGxZaUlzSW5KbFptVnljbUZzVFc5a1pTSTZJblpwWlhjaUxDSnlaV1psY25KaGJGWnBaWGNpT2lKTmVVWnBiR1Z6VEdsdWEwTnZjSGtpZlgwJmU9QjZ6OGVFIn0=xxx', 'xxxeyJEZXNjcmlwdGlvbiI6ICJsaXZlciBzaW51c29pZHMifQ==xxx')" disabled>Open Ultrasound 3</button>
+        <button class="ultrasound-button disabled" onclick="closeChildWindows()" disabled>Close All Windows</button>
+    </div>
+    <div class="guess-container">
+        <input type="text" id="guessInput" placeholder="What is this image?">
+        <input type="submit" onclick="submitGuess()" value="Submit Guess">
+        <button id="seeImageAgain" class="ultrasound-button disabled" onclick="bringToFront()" disabled>See Image Again</button>
+    </div>
+</body>
+</html>
